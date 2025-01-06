@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Board</title>
+    <title>Nine Men's Morris</title>
     <style>
         body {
             display: flex;
@@ -13,6 +13,7 @@
             height: 100vh;
             background-color: #f0f0f0;
             margin: 0;
+            font-family: sans-serif;
         }
         .board-container {
             position: relative;
@@ -28,9 +29,19 @@
             background-color: #3498db;
             border-radius: 50%;
             border: 2px solid #fff;
-            cursor: pointer;
+            cursor: pointer; /* Add cursor pointer for interactivity */
             transform: translate(-50%, -50%);
+            transition: background-color 0.2s ease;
         }
+         .point.possible-move{
+             background-color: lightgreen;
+         }
+         .point.mill-highlight{
+              background-color: yellow;
+         }
+         .point.removable{
+           background-color: red;
+         }
         .piece {
             position: absolute;
             width: 105px;
@@ -43,9 +54,10 @@
             border: 3px solid yellow;
         }
         #message {
-            margin-top: 20px; /* Add some space between board and message */
+            margin-top: 20px;
             font-size: 1.2em;
             font-weight: bold;
+            text-align: center;
         }
 
         .black-piece{
@@ -78,13 +90,75 @@
         let piecesPlaced = { black: 0, white: 0 };
         const maxPieces = 9;
         let selectedPiece = null;
-        let gamePhase = 'placement'; // 'placement' or 'movement'
+        let gamePhase = 'placement';
         let blackPiecesRemoved = 0;
         let whitePiecesRemoved = 0;
+        let lastMill=null;
 
         function updateMessage() {
-            message.textContent = `${currentPlayer.toUpperCase()}'s turn - ${gamePhase === 'placement' ? 'Place a piece' : 'Move a piece'}. Black pieces Removed: ${blackPiecesRemoved}. White pieces Removed: ${whitePiecesRemoved}.`;
+            message.textContent = `${currentPlayer.toUpperCase()}'s turn - ${gamePhase === 'placement' ? 'Place a piece' : (gamePhase === 'movement' ? 'Move a piece' : 'Remove a Piece')}. Black pieces Removed: ${blackPiecesRemoved}. White pieces Removed: ${whitePiecesRemoved}.`;
         }
+
+
+      function highlightPossibleMoves(pointElement) {
+            // Clear previous highlights
+            removeHighlightFromPoints()
+           const adjacentPoints =  getAdjacentPoints(parseFloat(pointElement.dataset.x), parseFloat(pointElement.dataset.y))
+            if(adjacentPoints){
+                 adjacentPoints.forEach(point=>{
+                    const pointElement = [...board.querySelectorAll('.point')].find(p =>
+                    Math.abs(parseFloat(p.style.left.replace('%', '')) - point[0]) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - point[1]) < 0.5
+                    );
+
+                 if(pointElement && !pointElement.classList.contains('taken')){
+                      pointElement.classList.add('possible-move')
+                      }
+                 });
+             }
+        }
+     function removeHighlightFromPoints() {
+        const points = board.querySelectorAll('.point');
+          points.forEach(point=>{
+               point.classList.remove('possible-move');
+          })
+       }
+       function highlightMill(linePositions) {
+            // Clear previous highlights
+            if(lastMill){
+                lastMill.forEach(position=>{
+                     const pointElement = [...board.querySelectorAll('.point')].find(p =>
+                             Math.abs(parseFloat(p.style.left.replace('%', '')) - position.x) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - position.y) < 0.5
+                     );
+                      if(pointElement){
+                          pointElement.classList.remove('mill-highlight');
+                         }
+                   });
+            }
+
+
+           linePositions.forEach(position=>{
+               const pointElement = [...board.querySelectorAll('.point')].find(p =>
+                             Math.abs(parseFloat(p.style.left.replace('%', '')) - position.x) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - position.y) < 0.5
+                        );
+               if(pointElement){
+                 pointElement.classList.add('mill-highlight');
+              }
+            });
+            lastMill = linePositions;
+        }
+        function highlightRemovablePieces() {
+            // Clear previous highlights
+           const pieces = [...board.querySelectorAll('.point')].filter(point =>
+               point.classList.contains('taken') && point.dataset.player !== currentPlayer
+           );
+           pieces.forEach(piece=> piece.classList.add('removable'));
+        }
+      function removeHighlightFromRemovablePieces() {
+           const pieces = [...board.querySelectorAll('.point')].filter(point =>
+            point.classList.contains('removable')
+        );
+         pieces.forEach(piece=> piece.classList.remove('removable'));
+      }
 
         function checkThreeInRow(x,y) {
             const positions = {
@@ -95,7 +169,7 @@
                     [-1,0],[1,0],[0,1],[0,2]
                 ],
                 'x:96,y:3.5':[
-                  [-1,0],[-2,0],[0,1],[0,2]
+                    [-1,0],[-2,0],[0,1],[0,2]
                 ],
                 'x:16.5,y:19':[
                     [1,0],[-1,0],[0,1],[0,2]
@@ -110,118 +184,117 @@
                     [1,0],[-1,0],[0,1],[0,2]
                 ],
                 'x:50.5,y:35.3':[
-                     [1,0],[-1,0],[0,1],[0,-1]
+                    [1,0],[-1,0],[0,1],[0,-1]
                 ],
                 'x:65,y:35.3':[
                     [1,0],[-1,0],[0,1],[0,-1]
                 ],
                 'x:5,y:50':[
-                     [1,0],[2,0],[0,1],[0,-1]
+                    [1,0],[2,0],[0,1],[0,-1]
                 ],
                 'x:16.5,y:50':[
-                     [1,0],[-1,0],[0,1],[0,-1]
+                    [1,0],[-1,0],[0,1],[0,-1]
                 ],
                 'x:36.5,y:50':[
-                     [1,0],[-1,0],[0,1],[0,-1]
-                ],
-                 'x:65,y:50':[
                     [1,0],[-1,0],[0,1],[0,-1]
-                 ],
-                  'x:83,y:50':[
-                     [1,0],[-1,0],[0,1],[0,-1]
-                  ],
-                 'x:96,y:50':[
-                     [-1,0],[-2,0],[0,1],[0,-1]
-                  ],
-                 'x:36.5,y:65':[
-                     [1,0],[-1,0],[0,1],[0,-1]
+                ],
+                'x:65,y:50':[
+                    [1,0],[-1,0],[0,1],[0,-1]
+                ],
+                'x:83,y:50':[
+                    [1,0],[-1,0],[0,1],[0,-1]
+                ],
+                'x:96,y:50':[
+                    [-1,0],[-2,0],[0,1],[0,-1]
+                ],
+                'x:36.5,y:65':[
+                    [1,0],[-1,0],[0,1],[0,-1]
                 ],
                 'x:50.5,y:65':[
                     [1,0],[-1,0],[0,1],[0,-1]
-               ],
-              'x:65,y:65':[
-                     [1,0],[-1,0],[0,1],[0,-1]
-              ],
-              'x:16.5,y:82.5':[
-                     [1,0],[-1,0],[0,1],[0,-1]
-              ],
-              'x:50,y:82':[
+                ],
+                'x:65,y:65':[
                     [1,0],[-1,0],[0,1],[0,-1]
-              ],
-              'x:83,y:82':[
+                ],
+                'x:16.5,y:82.5':[
+                    [1,0],[-1,0],[0,1],[0,-1]
+                ],
+                'x:50,y:82':[
+                    [1,0],[-1,0],[0,1],[0,-1]
+                ],
+                'x:83,y:82':[
                     [-1,0],[-2,0],[0,1],[0,-1]
-              ],
-               'x:5,y:97':[
+                ],
+                'x:5,y:97':[
                     [1,0],[2,0],[0,-1],[-1,0]
-              ],
-              'x:50,y:97':[
-                  [1,0],[-1,0],[0,-1],[-1,0]
-              ],
-              'x:96,y:97':[
-                   [-1,0],[-2,0],[0,-1],[-1,0]
-              ]
+                ],
+                'x:50,y:97':[
+                    [1,0],[-1,0],[0,-1],[-1,0]
+                ],
+                'x:96,y:97':[
+                    [-1,0],[-2,0],[0,-1],[-1,0]
+                ]
             }
-             const currentPointString = `x:${x},y:${y}`
+            const currentPointString = `x:${x},y:${y}`
             const currentPoint = points.find(point=> `x:${point.x},y:${point.y}` === currentPointString)
 
             if (!currentPoint) return false;
             const adjacentPoints = positions[currentPointString];
 
+            const checkLine = (dirX,dirY)=>{
+                let count =1;
+                let linePositions = [];
+                linePositions.push({x:currentPoint.x,y:currentPoint.y});
+                let nextX = currentPoint.x;
+                let nextY = currentPoint.y;
 
-              const checkLine = (dirX,dirY)=>{
-                   let count =1;
-                   let linePositions = [];
-                   linePositions.push({x:currentPoint.x,y:currentPoint.y});
-                   let nextX = currentPoint.x;
-                   let nextY = currentPoint.y;
+                for(let i = 1;i<=2; i++){
+                    nextX = parseFloat(nextX) + parseFloat(dirX*16.5);
+                    nextY = parseFloat(nextY) + parseFloat(dirY *16.5);
+                    let found = false;
 
-                   for(let i = 1;i<=2; i++){
-                        nextX = parseFloat(nextX) + parseFloat(dirX*16.5);
-                        nextY = parseFloat(nextY) + parseFloat(dirY *16.5);
-                       let found = false;
-
-                       for (const point of points){
-                         if (Math.abs(point.x - nextX) < 0.5 && Math.abs(point.y - nextY) < 0.5) {
-                                linePositions.push({x: point.x, y: point.y})
-                              found = true;
-                             break;
+                    for (const point of points){
+                        if (Math.abs(point.x - nextX) < 0.5 && Math.abs(point.y - nextY) < 0.5) {
+                            linePositions.push({x: point.x, y: point.y})
+                            found = true;
+                            break;
                         }
-                     }
+                    }
 
-                      if (found) {
+                    if (found) {
                         const pointElement = [...board.querySelectorAll('.point')].find(p =>
-                           Math.abs(parseFloat(p.style.left.replace('%', '')) - nextX) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - nextY) < 0.5
-                           );
+                            Math.abs(parseFloat(p.style.left.replace('%', '')) - nextX) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - nextY) < 0.5
+                        );
 
-                           if (pointElement && pointElement.dataset.player === currentPlayer)
-                           {
-                             count++;
-                            }else
-                            {
-                                  break;
-                            }
+                        if (pointElement && pointElement.dataset.player === currentPlayer)
+                        {
+                            count++;
+                        }else
+                        {
+                            break;
+                        }
 
-                      }
-                      else
-                      {
-                         break;
-                      }
-                  }
-
-                    return count === 3 ? linePositions : false;
-
-                 }
-          if(adjacentPoints){
-            for(const adj of adjacentPoints){
-                const check = checkLine(adj[0],adj[1]);
-               if(check){
-                  return check;
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
 
-              }
-         }
+                return count === 3 ? linePositions : false;
 
-           return false
+            }
+            if(adjacentPoints){
+                for(const adj of adjacentPoints){
+                    const check = checkLine(adj[0],adj[1]);
+                    if(check){
+                        return check;
+                    }
+
+                }
+            }
+
+            return false
         }
         function getAdjacentPoints(x,y){
            const positions = {
@@ -348,8 +421,10 @@
                             const threeInRow = checkThreeInRow(pointElement.dataset.x,pointElement.dataset.y);
                              if(threeInRow){
                                   gamePhase = 'remove';
-                                 updateMessage();
-                                 message.textContent= `Make a 3 in a row, Remove an Opponent Piece.`
+                                  highlightMill(threeInRow)
+                                  highlightRemovablePieces();
+                                  updateMessage();
+                                  message.textContent= `Make a 3 in a row, Remove an Opponent Piece.`
                                return
                              }
                             currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
@@ -371,9 +446,11 @@
                           // Select a piece to move
                          if (selectedPiece) {
                               selectedPiece.classList.remove('selected');
+                              removeHighlightFromPoints();
                           }
                           selectedPiece = pointElement;
                            selectedPiece.classList.add('selected');
+                           highlightPossibleMoves(pointElement)
                          }
                          else if (selectedPiece && !pointElement.classList.contains('taken')) {
 
@@ -388,10 +465,13 @@
                            pointElement.classList.add('taken');
                             pointElement.dataset.player = currentPlayer;
                             selectedPiece.classList.remove('selected');
+                            removeHighlightFromPoints();
                             selectedPiece = null;
                               const threeInRow = checkThreeInRow(pointElement.dataset.x,pointElement.dataset.y);
                                 if(threeInRow){
                                    gamePhase = 'remove';
+                                   highlightMill(threeInRow)
+                                   highlightRemovablePieces();
                                    updateMessage();
                                     message.textContent= `Make a 3 in a row, Remove an Opponent Piece.`
                                      return
@@ -406,7 +486,7 @@
                             if(pointElement.classList.contains('taken') && pointElement.dataset.player !== currentPlayer){
                              const pieceToRemove = [...board.querySelectorAll('.piece')].find(img =>
                                  Math.abs(parseFloat(img.style.left.replace('%','')) - parseFloat(pointElement.style.left.replace('%',''))) <0.5 && Math.abs(parseFloat(img.style.top.replace('%','')) - parseFloat(pointElement.style.top.replace('%',''))) < 0.5
-                               );
+                                                );
                             if(pieceToRemove){
                                 board.removeChild(pieceToRemove);
                                 pointElement.classList.remove('taken');
@@ -418,6 +498,7 @@
                                   blackPiecesRemoved++;
                                 }
                                  gamePhase = 'movement';
+                                 removeHighlightFromRemovablePieces();
                                  if(blackPiecesRemoved === 7){
                                     message.textContent = 'White wins the game';
                                     gamePhase = 'ended'
