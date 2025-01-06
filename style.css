@@ -1,0 +1,61 @@
+body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+    margin: 0;
+    font-family: sans-serif;
+}
+.board-container {
+    position: relative;
+    width: 500px;
+    height: 500px;
+    background-image: url('board.png');
+    background-size: cover;
+}
+.point {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-color: #3498db;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    cursor: pointer;
+    transform: translate(-50%, -50%);
+    transition: background-color 0.2s ease;
+}
+ .point.possible-move{
+     background-color: lightgreen;
+ }
+ .point.mill-highlight{
+      background-color: yellow;
+ }
+ .point.removable{
+   background-color: red;
+ }
+.piece {
+    position: absolute;
+    width: 105px;
+    height: 105px;
+    transform: translate(-50%, -60%);
+    border-radius: 50%;
+    transition: left 0.3s ease, top 0.3s ease;
+}
+.selected {
+    border: 3px solid yellow;
+}
+#message {
+    margin-top: 20px;
+    font-size: 1.2em;
+    font-weight: bold;
+    text-align: center;
+}
+
+.black-piece{
+  background-color: black;
+}
+.white-piece{
+  background-color: white;
+}
