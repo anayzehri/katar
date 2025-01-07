@@ -1,16 +1,35 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nine Men's Morris</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="board-container" id="board">
-        <!-- Points will be added dynamically -->
+    <div class="container">
+        <h1>Nine Men's Morris</h1>
+        <div class="theme-selector">
+        <label for="theme">Theme:</label>
+        <select id="theme">
+            <option value="default">Default</option>
+            <option value="dark">Dark</option>
+            <!-- Add more themes here -->
+        </select>
     </div>
-    <div id="message"></div>
+        <div class="score">
+            <div class="player-score black-score">Black: <span id="black-score">9</span></div>
+            <div class="player-score white-score">White: <span id="white-score">9</span></div>
+        </div>
+        
+        <div class="game-board">
+            <img id="board-img" src="board.png" alt="Game Board">
+            <div class="points">
+                <!-- Point elements will be generated here by JavaScript -->
+            </div>
+        </div>
+        <div class="message"></div>
+        <button id="reset-button">Reset Game</button>
+    </div>
     <script src="script.js"></script>
 </body>
 </html>
