@@ -1,4 +1,4 @@
-const points = [
+const pointsData = [
     { x: 5, y: 3.5 }, { x: 50.5, y: 3.5 }, { x: 96, y: 3.5 },
     { x: 16.5, y: 19 }, { x: 50.5, y: 18.5 }, { x: 82, y: 19 },
     { x: 36.5, y: 35.3 }, { x: 50.5, y: 35.3 }, { x: 65, y: 35.3 },
@@ -8,372 +8,412 @@ const points = [
     { x: 5, y: 97 }, { x: 50, y: 97 }, { x: 96, y: 97 }
 ];
 
-const board = document.getElementById('board');
-const message = document.getElementById('message');
+const mills = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [9, 10, 11], [12, 13, 14], 
+    [15, 16, 17], [18, 19, 20], [21, 22, 23],
+    [0, 9, 21], [3, 10, 18], [6, 11, 15],
+    [1, 4, 7], [16, 19, 22],
+    [8, 12, 17], [5, 13, 20],
+    [2, 14, 23]
+];
+
+const neighbors = {
+    0: [1, 9],
+    1: [0, 2, 4],
+    2: [1, 14],
+    3: [4, 10],
+    4: [1, 3, 5, 7],
+    5: [4, 13],
+    6: [7, 11],
+    7: [4, 6, 8],
+    8: [7, 12],
+    9: [0, 10, 21],
+    10: [3, 9, 11, 18],
+    11: [6, 10, 15],
+    12: [8, 13, 17],
+    13: [5, 12, 14, 20],
+    14: [2, 13, 23],
+    15: [11, 16],
+    16: [15, 17, 19],
+    17: [12, 16],
+    18: [10, 19],
+    19: [16, 18, 20, 22],
+    20: [13, 19],
+    21: [9, 22],
+    22: [19, 21, 23],
+    23: [14, 22]
+};
+const themeSelector = document.getElementById('theme');
+const container = document.querySelector('.container'); // Or the body
+
+themeSelector.addEventListener('change', (event) => {
+    const selectedTheme = event.target.value;
+    if (selectedTheme === 'dark') {
+        container.classList.add('dark-theme');
+        container.classList.remove('default-theme'); // Remove default if present
+    } else {
+        container.classList.remove('dark-theme');
+        container.classList.add('default-theme'); // Add default if needed
+    }
+});
+const gameBoard = document.querySelector('.game-board');
+const pointsContainer = document.querySelector('.points');
+const messageDiv = document.querySelector('.message');
+const blackScoreSpan = document.getElementById('black-score');
+const whiteScoreSpan = document.getElementById('white-score');
+const resetButton = document.getElementById('reset-button');
+
+let boardState = Array(24).fill(null);
 let currentPlayer = 'black';
-let piecesPlaced = { black: 0, white: 0 };
-const maxPieces = 9;
-let selectedPiece = null;
-let gamePhase = 'placement';
-let blackPiecesRemoved = 0;
-let whitePiecesRemoved = 0;
-let lastMill = null;
+let blackPiecesLeft = 9;
+let whitePiecesLeft = 9;
+let placingPhase = true;
+let selectedPieceIndex = null;
+let canRemovePiece = false; // NEW: Flag to indicate if a piece can be removed
 
-function updateMessage() {
-    message.textContent = `${currentPlayer.toUpperCase()}'s turn - ${gamePhase === 'placement' ? 'Place a piece' : (gamePhase === 'movement' ? 'Move a piece' : 'Remove a Piece')}. Black pieces Removed: ${blackPiecesRemoved}. White pieces Removed: ${whitePiecesRemoved}.`;
-}
-
-function highlightPossibleMoves(pointElement) {
-    removeHighlightFromPoints();
-    const adjacentPoints = getAdjacentPoints(parseFloat(pointElement.dataset.x), parseFloat(pointElement.dataset.y));
-    if (adjacentPoints) {
-        adjacentPoints.forEach(point => {
-            const pointElement = [...board.querySelectorAll('.point')].find(p =>
-                Math.abs(parseFloat(p.style.left.replace('%', '')) - point[0]) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - point[1]) < 0.5
-            );
-            if (pointElement && !pointElement.classList.contains('taken')) {
-                pointElement.classList.add('possible-move');
-            }
-        });
-    }
-}
-
-function removeHighlightFromPoints() {
-    board.querySelectorAll('.point').forEach(point => {
-        point.classList.remove('possible-move');
+function createPoints() {
+    pointsData.forEach((point, index) => {
+        const pointDiv = document.createElement('div');
+        pointDiv.classList.add('point'); // Removed 'empty' class here
+        pointDiv.style.left = `${point.x}%`;
+        pointDiv.style.top = `${point.y}%`;
+        pointDiv.dataset.index = index;
+        pointDiv.addEventListener('click', handlePointClick);
+        pointsContainer.appendChild(pointDiv);
+        updatePointVisualState(pointDiv, null); // Set initial visual state
     });
 }
 
-function highlightMill(linePositions) {
-    if (lastMill) {
-        lastMill.forEach(position => {
-            const pointElement = [...board.querySelectorAll('.point')].find(p =>
-                Math.abs(parseFloat(p.style.left.replace('%', '')) - position.x) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - position.y) < 0.5
-            );
-            if (pointElement) {
-                pointElement.classList.remove('mill-highlight');
-            }
-        });
+function updatePointVisualState(pointDiv, player) {
+    pointDiv.classList.remove('empty', 'black', 'white');
+    if (player === 'black') {
+        pointDiv.classList.add('black');
+    } else if (player === 'white') {
+        pointDiv.classList.add('white');
+    } else {
+        pointDiv.classList.add('empty');
+    }
+}
+
+function handlePointClick(event) {
+    const pointIndex = parseInt(event.target.dataset.index);
+
+    if (canRemovePiece) {
+        removeOpponentPiece(pointIndex);
+        return;
     }
 
-    linePositions.forEach(position => {
-        const pointElement = [...board.querySelectorAll('.point')].find(p =>
-            Math.abs(parseFloat(p.style.left.replace('%', '')) - position.x) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - position.y) < 0.5
-        );
-        if (pointElement) {
-            pointElement.classList.add('mill-highlight');
+    if (placingPhase) {
+        handlePlacement(pointIndex);
+    } else {
+        handleMovement(pointIndex);
+    }
+}
+
+function handlePlacement(pointIndex) {
+    if (boardState[pointIndex] === null) {
+        boardState[pointIndex] = currentPlayer;
+        const pointDiv = document.querySelector(`.point[data-index="${pointIndex}"]`);
+        updatePointVisualState(pointDiv, currentPlayer);
+
+        if (currentPlayer === 'black') {
+            blackPiecesLeft--;
+            blackScoreSpan.textContent = blackPiecesLeft;
+        } else {
+            whitePiecesLeft--;
+            whiteScoreSpan.textContent = whitePiecesLeft;
         }
-    });
-    lastMill = linePositions;
+
+        const formedMill = checkMill(pointIndex, currentPlayer);
+        if (formedMill) {
+            canRemovePiece = true; // Set the flag to allow removal
+            updateMessage("Mill formed! " + currentPlayer.toUpperCase() + ", remove an opponent's piece.");
+            drawMillLine(formedMill); // Draw the green line
+            highlightMillPieces(formedMill); // Highlight the pieces forming the mill
+        } else {
+            switchTurn();
+        }
+
+        if (blackPiecesLeft === 0 && whitePiecesLeft === 0) {
+            placingPhase = false;
+            updateMessage(currentPlayer.toUpperCase() + "'s turn to move.");
+        }
+    }
 }
 
-function highlightRemovablePieces() {
-      const pieces = [...board.querySelectorAll('.point')].filter(point =>
-        point.classList.contains('taken') && point.dataset.player !== currentPlayer
-    );
+function handleMovement(targetIndex) {
+    if (selectedPieceIndex !== null) {
+        if (boardState[targetIndex] === null && neighbors[selectedPieceIndex].includes(parseInt(targetIndex))) {
+            boardState[targetIndex] = currentPlayer;
+            boardState[selectedPieceIndex] = null;
+            updateBoardDisplay();
+            removeHighlights();
+            removeMillLines();
+            removeMillHighlight(); // Remove previous mill highlight
 
-    const millPositions = lastMill ? lastMill.map(pos => `${pos.x}-${pos.y}`) : [];
-     const nonMillPieces =  pieces.filter(piece=> !millPositions.includes(`${piece.dataset.x}-${piece.dataset.y}`));
-
-    if(nonMillPieces.length>0)
-      nonMillPieces.forEach(piece=> piece.classList.add('removable'));
-    else
-    pieces.forEach(piece=> piece.classList.add('removable'));
-}
-
-function removeHighlightFromRemovablePieces() {
-    const pieces = [...board.querySelectorAll('.point')].filter(point =>
-        point.classList.contains('removable')
-    );
-    pieces.forEach(piece => piece.classList.remove('removable'));
-}
-
-function checkThreeInRow(x, y) {
-    const positions = {
-        'x:5,y:3.5': [[1, 0], [2, 0], [0, 1], [0, 2]],
-        'x:50.5,y:3.5': [[-1, 0], [1, 0], [0, 1], [0, 2]],
-        'x:96,y:3.5': [[-1, 0], [-2, 0], [0, 1], [0, 2]],
-        'x:16.5,y:19': [[1, 0], [-1, 0], [0, 1], [0, 2]],
-        'x:50.5,y:18.5': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:82,y:19': [[-1, 0], [-2, 0], [0, 1], [0, -1]],
-        'x:36.5,y:35.3': [[1, 0], [-1, 0], [0, 1], [0, 2]],
-        'x:50.5,y:35.3': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:65,y:35.3': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:5,y:50': [[1, 0], [2, 0], [0, 1], [0, -1]],
-        'x:16.5,y:50': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:36.5,y:50': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:65,y:50': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:83,y:50': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:96,y:50': [[-1, 0], [-2, 0], [0, 1], [0, -1]],
-        'x:36.5,y:65': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:50.5,y:65': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:65,y:65': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:16.5,y:82.5': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:50,y:82': [[1, 0], [-1, 0], [0, 1], [0, -1]],
-        'x:83,y:82': [[-1, 0], [-2, 0], [0, 1], [0, -1]],
-        'x:5,y:97': [[1, 0], [2, 0], [0, -1], [-1, 0]],
-        'x:50,y:97': [[1, 0], [-1, 0], [0, -1], [-1, 0]],
-        'x:96,y:97': [[-1, 0], [-2, 0], [0, -1], [-1, 0]]
-    };
-    const currentPointString = `x:${x},y:${y}`;
-    const currentPoint = points.find(point => `x:${point.x},y:${point.y}` === currentPointString);
-
-    if (!currentPoint) return false;
-    const adjacentPoints = positions[currentPointString];
-
-    const checkLine = (dirX, dirY) => {
-        let count = 1;
-        let linePositions = [];
-        linePositions.push({ x: currentPoint.x, y: currentPoint.y });
-        let nextX = currentPoint.x;
-        let nextY = currentPoint.y;
-
-        for (let i = 1; i <= 2; i++) {
-            nextX = parseFloat(nextX) + parseFloat(dirX * 16.5);
-            nextY = parseFloat(nextY) + parseFloat(dirY * 16.5);
-            let found = false;
-
-            for (const point of points) {
-                if (Math.abs(point.x - nextX) < 0.5 && Math.abs(point.y - nextY) < 0.5) {
-                    linePositions.push({ x: point.x, y: point.y });
-                    found = true;
-                    break;
-                }
-            }
-
-            if (found) {
-                const pointElement = [...board.querySelectorAll('.point')].find(p =>
-                    Math.abs(parseFloat(p.style.left.replace('%', '')) - nextX) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - nextY) < 0.5
-                );
-
-                if (pointElement && pointElement.dataset.player === currentPlayer) {
-                    count++;
-                } else {
-                    break;
-                }
-
+            const formedMill = checkMill(targetIndex, currentPlayer);
+            if (formedMill) {
+                canRemovePiece = true;
+                updateMessage("Mill formed! " + currentPlayer.toUpperCase() + ", remove an opponent's piece.");
+                drawMillLine(formedMill);
+                highlightMillPieces(formedMill); // Highlight the pieces forming the mill
             } else {
-                break;
+                switchTurn();
+                if (!placingPhase) { // Only check win condition after placing phase
+                    checkWinCondition();
+                }
+            }
+            selectedPieceIndex = null;
+        } else {
+            updateMessage("Invalid move.");
+            selectedPieceIndex = null;
+            removeHighlights();
+        }
+    } else if (boardState[targetIndex] === currentPlayer) {
+        selectedPieceIndex = targetIndex;
+        highlightMoves(targetIndex);
+    }
+}
+
+function highlightMoves(pieceIndex) {
+    removeHighlights();
+    const pointDiv = document.querySelector(`.point[data-index="${pieceIndex}"]`);
+    if (pointDiv) {
+        pointDiv.classList.add('highlight');
+    }
+    const neighborsOfPiece = neighbors[pieceIndex];
+    if (neighborsOfPiece) {
+        neighborsOfPiece.forEach(neighborIndex => {
+            if (boardState[neighborIndex] === null) {
+                const neighborPointDiv = document.querySelector(`.point[data-index="${neighborIndex}"]`);
+                if (neighborPointDiv) {
+                    neighborPointDiv.classList.add('highlight');
+                }
+            }
+        });
+    }
+}
+
+function removeHighlights() {
+    document.querySelectorAll('.point').forEach(point => point.classList.remove('highlight'));
+}
+
+function checkMill(pointIndex, player) {
+    for (const mill of mills) {
+        if (mill.includes(pointIndex)) {
+            const [a, b, c] = mill;
+            if (boardState[a] === player && boardState[b] === player && boardState[c] === player) {
+                return mill; // Return the indices of the mill
             }
         }
+    }
+    return null; // Return null if no mill is formed
+}
 
-        return count === 3 ? linePositions : false;
+function drawMillLine(millIndices) {
+    const point1 = document.querySelector(`.point[data-index="${millIndices[0]}"]`);
+    const point2 = document.querySelector(`.point[data-index="${millIndices[1]}"]`);
+    const point3 = document.querySelector(`.point[data-index="${millIndices[2]}"]`);
 
-    };
-    if (adjacentPoints) {
-        for (const adj of adjacentPoints) {
-            const check = checkLine(adj[0], adj[1]);
-            if (check) {
-                return check;
+    if (!point1 || !point2 || !point3) return;
+
+    const rect1 = point1.getBoundingClientRect();
+    const rect2 = point2.getBoundingClientRect();
+    const rect3 = point3.getBoundingClientRect();
+
+    const pointsContainerRect = pointsContainer.getBoundingClientRect();
+
+    const centerX1 = rect1.left + rect1.width / 2 - pointsContainerRect.left;
+    const centerY1 = rect1.top + rect1.height / 2 - pointsContainerRect.top;
+    const centerX2 = rect2.left + rect2.width / 2 - pointsContainerRect.left;
+    const centerY2 = rect2.top + rect2.height / 2 - pointsContainerRect.top;
+    const centerX3 = rect3.left + rect3.width / 2 - pointsContainerRect.left;
+    const centerY3 = rect3.top + rect3.height / 2 - pointsContainerRect.top;
+
+    const line = document.createElement('div');
+    line.classList.add('mill-line');
+    pointsContainer.appendChild(line); // Append to the points container
+
+    if (Math.abs(centerY1 - centerY2) < 1 && Math.abs(centerY2 - centerY3) < 1) { // Horizontal
+        line.style.width = `${Math.max(centerX1, centerX2, centerX3) - Math.min(centerX1, centerX2, centerX3)}px`;
+        line.style.top = `${centerY1 - 3}px`; // Adjust for line thickness
+        line.style.left = `${Math.min(centerX1, centerX2, centerX3)}px`;
+    } else if (Math.abs(centerX1 - centerX2) < 1 && Math.abs(centerX2 - centerX3) < 1) { // Vertical
+        line.style.height = `${Math.max(centerY1, centerY2, centerY3) - Math.min(centerY1, centerY2, centerY3)}px`;
+        line.style.left = `${centerX1 - 3}px`; // Adjust for line thickness
+        line.style.top = `${Math.min(centerY1, centerY2, centerY3)}px`;
+    }
+}
+
+function removeMillLines() {
+    document.querySelectorAll('.mill-line').forEach(line => line.remove());
+}
+
+function highlightMillPieces(millIndices) {
+    millIndices.forEach(index => {
+        const pointDiv = document.querySelector(`.point[data-index="${index}"]`);
+        if (pointDiv) {
+            pointDiv.classList.add('mill-highlight');
+        }
+    });
+}
+
+function removeMillHighlight() {
+    document.querySelectorAll('.point').forEach(point => point.classList.remove('mill-highlight'));
+}
+
+function removeOpponentPiece(pointIndex) {
+    const opponent = currentPlayer === 'black' ? 'white' : 'black';
+    console.log("removeOpponentPiece - Before removal:", boardState); // ADD THIS LINE
+    if (boardState[pointIndex] === opponent && !isPieceInMill(pointIndex, opponent)) {
+        boardState[pointIndex] = null;
+        updateBoardDisplay();
+        canRemovePiece = false; // Reset the flag after removal
+        removeMillLines(); // Remove mill line after removing a piece
+        removeMillHighlight(); // Remove the mill highlight after removal
+        switchTurn();
+        if (!placingPhase) { // Only check win condition after placing phase
+            checkWinCondition();
+        }
+    } else if (boardState[pointIndex] === opponent && canOnlyRemoveFromMill(opponent)) {
+        boardState[pointIndex] = null;
+        updateBoardDisplay();
+        canRemovePiece = false; // Reset the flag after removal
+        removeMillLines(); // Remove mill line after removing a piece
+        removeMillHighlight(); // Remove the mill highlight after removal
+        switchTurn();
+        if (!placingPhase) { // Only check win condition after placing phase
+            checkWinCondition();
+        }
+    } else {
+        updateMessage("Invalid removal. Choose an opponent's piece not in a mill (unless all their pieces are in mills).");
+    }
+    console.log("removeOpponentPiece - After removal:", boardState); // ADD THIS LINE
+}
+function isPieceInMill(pointIndex, player) {
+    for (const mill of mills) {
+        if (mill.includes(pointIndex)) {
+            const [a, b, c] = mill;
+            if (boardState[a] === player && boardState[b] === player && boardState[c] === player) {
+                return true;
             }
-
         }
     }
     return false;
 }
 
-function getAdjacentPoints(x, y) {
-    const positions = {
-        'x:5,y:3.5': [[50.5, 3.5], [5, 19]],
-        'x:50.5,y:3.5': [[5, 3.5], [96, 3.5], [50.5, 18.5]],
-        'x:96,y:3.5': [[50.5, 3.5], [82, 19]],
-        'x:16.5,y:19': [[5, 3.5], [50.5, 18.5], [16.5, 50]],
-        'x:50.5,y:18.5': [[16.5, 19], [50.5, 3.5], [82, 19], [50.5, 35.3]],
-        'x:82,y:19': [[96, 3.5], [50.5, 18.5], [83, 50]],
-        'x:36.5,y:35.3': [[16.5, 19], [50.5, 35.3], [36.5, 50]],
-        'x:50.5,y:35.3': [[50.5, 18.5], [36.5, 35.3], [65, 35.3], [50.5, 50]],
-        'x:65,y:35.3': [[82, 19], [50.5, 35.3], [65, 50]],
-        'x:5,y:50': [[5, 3.5], [16.5, 50], [5, 97]],
-        'x:16.5,y:50': [[16.5, 19], [5, 50], [36.5, 50], [16.5, 82.5]],
-        'x:36.5,y:50': [[36.5, 35.3], [16.5, 50], [65, 50], [36.5, 65]],
-        'x:65,y:50': [[65, 35.3], [36.5, 50], [83, 50], [65, 65]],
-        'x:83,y:50': [[82, 19], [65, 50], [96, 50], [83, 82]],
-        'x:96,y:50': [[96, 3.5], [83, 50], [96, 97]],
-        'x:36.5,y:65': [[36.5, 50], [50.5, 65], [36.5, 82.5]],
-        'x:50.5,y:65': [[50.5, 50], [36.5, 65], [65, 65]],
-        'x:65,y:65': [[65, 50], [50.5, 65], [65, 82]],
-        'x:16.5,y:82.5': [[16.5, 50], [36.5, 82], [16.5, 97]],
-        'x:50,y:82': [[50.5, 65], [50, 50], [50, 97]],
-        'x:83,y:82': [[83, 50], [65, 82], [83, 97]],
-        'x:5,y:97': [[5, 50], [16.5, 82.5], [50, 97]],
-        'x:50,y:97': [[5, 97], [50, 82], [96, 97]],
-        'x:96,y:97': [[96, 50], [83, 82], [50, 97]]
-    };
-    const currentPointString = `x:${x},y:${y}`;
-    return positions[currentPointString] || [];
-}
+function canOnlyRemoveFromMill(player) {
+    const opponentPieces = boardState.reduce((count, piece) => count + (piece === player ? 1 : 0), 0);
+    if (opponentPieces <= 3) return true;
 
-function isAdjacent(point1, point2) {
-      const adjacentPoints =  getAdjacentPoints(parseFloat(point1.style.left.replace('%', '')), parseFloat(point1.style.top.replace('%', '')));
-        const  piecesOnBoard =  [...board.querySelectorAll('.point')].filter(point=>point.classList.contains('taken'));
-
-      if(piecesOnBoard.filter(point=> point.dataset.player === currentPlayer).length <= 3)
-            return true;
-       return adjacentPoints.some((point)=>
-        Math.abs(parseFloat(point2.style.left.replace('%', '')) - point[0]) < 0.5  &&  Math.abs(parseFloat(point2.style.top.replace('%', '')) - point[1]) < 0.5
-        );
-}
-
-points.forEach(point => {
-    const pointElement = document.createElement('div');
-    pointElement.classList.add('point');
-    pointElement.style.left = `${point.x}%`;
-    pointElement.style.top = `${point.y}%`;
-    pointElement.dataset.x = `${point.x}`;
-    pointElement.dataset.y = `${point.y}`;
-
-    pointElement.addEventListener('click', () => {
-        if (gamePhase === 'placement') {
-            if (!pointElement.classList.contains('taken') && piecesPlaced[currentPlayer] < maxPieces) {
-                let canPlace = true;
-                let check = checkThreeInRow(pointElement.dataset.x, pointElement.dataset.y);
-                if (check) {
-                    canPlace = false;
-                }
-                if (canPlace) {
-                    const piece = document.createElement('div');
-                    piece.classList.add('piece');
-                    piece.classList.add(currentPlayer === 'black' ? 'black-piece' : 'white-piece');
-                    piece.style.left = `${point.x}%`;
-                    piece.style.top = `${point.y}%`;
-                    piece.dataset.player = currentPlayer;
-                    board.appendChild(piece);
-                    pointElement.classList.add('taken');
-                    pointElement.dataset.player = currentPlayer;
-                    piecesPlaced[currentPlayer]++;
-                    const threeInRow = checkThreeInRow(pointElement.dataset.x, pointElement.dataset.y);
-                    if (threeInRow) {
-                        gamePhase = 'remove';
-                        highlightMill(threeInRow);
-                        highlightRemovablePieces();
-                        updateMessage();
-                        message.textContent = `Make a 3 in a row, Remove an Opponent Piece.`;
-                        return;
-                    }
-                    currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
-                    if (piecesPlaced.black === maxPieces && piecesPlaced.white === maxPieces) {
-                        gamePhase = 'movement';
-                    }
-                    updateMessage();
-                } else {
-                    message.textContent = `Can't place here, three in a row is not allowed`;
-                }
-            }
-        } else if (gamePhase === 'movement') {
-            if (pointElement.classList.contains('taken') && pointElement.dataset.player === currentPlayer) {
-                if (selectedPiece) {
-                    selectedPiece.classList.remove('selected');
-                    removeHighlightFromPoints();
-                }
-                selectedPiece = pointElement;
-                selectedPiece.classList.add('selected');
-                highlightPossibleMoves(pointElement);
-            } else if (selectedPiece && !pointElement.classList.contains('taken')) {
-                const pieceToMove = [...board.querySelectorAll('.piece')].find(img =>
-                    Math.abs(parseFloat(img.style.left.replace('%', '')) - parseFloat(selectedPiece.style.left.replace('%', ''))) < 0.5 && Math.abs(parseFloat(img.style.top.replace('%', '')) - parseFloat(selectedPiece.style.top.replace('%', ''))) < 0.5
-                );
-                if (pieceToMove && isAdjacent(selectedPiece, pointElement)) {
-                    pieceToMove.style.left = `${point.x}%`;
-                    pieceToMove.style.top = `${point.y}%`;
-                    selectedPiece.classList.remove('taken');
-                    selectedPiece.removeAttribute('data-player');
-                    pointElement.classList.add('taken');
-                    pointElement.dataset.player = currentPlayer;
-                    selectedPiece.classList.remove('selected');
-                    removeHighlightFromPoints();
-                    selectedPiece = null;
-                    const threeInRow = checkThreeInRow(pointElement.dataset.x, pointElement.dataset.y);
-                    if (threeInRow) {
-                        gamePhase = 'remove';
-                        highlightMill(threeInRow);
-                        highlightRemovablePieces();
-                        updateMessage();
-                        message.textContent = `Make a 3 in a row, Remove an Opponent Piece.`;
-                        return;
-                    }
-                    currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
-                    updateMessage();
-                } else {
-                    message.textContent = 'Invalid move';
-                }
-            }
-        } else if (gamePhase === 'remove') {
-            if (pointElement.classList.contains('removable')) {
-                const pieceToRemove = [...board.querySelectorAll('.piece')].find(img =>
-                    Math.abs(parseFloat(img.style.left.replace('%', '')) - parseFloat(pointElement.style.left.replace('%', ''))) < 0.5 && Math.abs(parseFloat(img.style.top.replace('%', '')) - parseFloat(pointElement.style.top.replace('%', ''))) < 0.5
-                );
-                if (pieceToRemove) {
-                    board.removeChild(pieceToRemove);
-                    pointElement.classList.remove('taken');
-                    pointElement.removeAttribute('data-player');
-                    if (currentPlayer === 'black') {
-                        whitePiecesRemoved++;
-                    } else {
-                        blackPiecesRemoved++;
-                    }
-                    removeHighlightFromRemovablePieces();
-                    removeHighlightFromPoints();
-                    if (piecesPlaced.black === maxPieces && piecesPlaced.white === maxPieces) {
-                         gamePhase = 'movement';
-                    }
-                    else
-                    {
-                         gamePhase = 'placement';
-                    }
-                     lastMill = null;
-                    currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
-                    if (checkWinCondition()) {
-                        return;
-                    }
-                    updateMessage();
-                }
-            } else {
-                message.textContent = 'Invalid remove';
-            }
+    for (let i = 0; i < boardState.length; i++) {
+        if (boardState[i] === player && !isPieceInMill(i, player)) {
+            return false;
         }
+    }
+    return true;
+}
+
+function switchTurn() {
+    currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
+    updateMessage(currentPlayer.toUpperCase() + "'s turn.");
+    removeMillHighlight(); // Remove mill highlight when the turn changes without a mill
+    updateTurnIndicator();
+}
+function updateTurnIndicator() {
+    if (currentPlayer === 'black') {
+        blackScoreSpan.parentElement.classList.add('current-turn');
+        whiteScoreSpan.parentElement.classList.remove('current-turn');
+    } else {
+        whiteScoreSpan.parentElement.classList.add('current-turn');
+        blackScoreSpan.parentElement.classList.remove('current-turn');
+    }
+}
+
+// Call updateTurnIndicator initially
+updateTurnIndicator();
+
+function updateMessage(message) {
+    messageDiv.textContent = message;
+}
+
+function updateBoardDisplay() {
+    document.querySelectorAll('.point').forEach((pointDiv, index) => {
+        updatePointVisualState(pointDiv, boardState[index]);
+        pointDiv.classList.remove('highlight', 'mill-highlight'); // Remove these here for clarity
     });
-    board.appendChild(pointElement);
-});
+    console.log("Before checkWinCondition - Board State:", boardState); // ADD THIS LINE
+    if (!placingPhase) { // Only check win condition after placing phase
+        checkWinCondition();
+    }
+}
+
+function hasLegalMoves(player) {
+    for (let i = 0; i < boardState.length; i++) {
+        if (boardState[i] === player) {
+            // Check if this piece has any empty neighbors
+            const neighborsOfPiece = neighbors[i];
+            if (neighborsOfPiece) {
+                for (const neighborIndex of neighborsOfPiece) {
+                    if (boardState[neighborIndex] === null) {
+                        return true; // Found a legal move
+                    }
+                }
+            }
+        }
+    }
+    return false; // No legal moves found for this player
+}
+
 function checkWinCondition() {
-        const blackPieces = [...board.querySelectorAll('.point')].filter(point => point.classList.contains('taken') && point.dataset.player === 'black');
-        const whitePieces = [...board.querySelectorAll('.point')].filter(point => point.classList.contains('taken') && point.dataset.player === 'white');
+    const blackPieces = boardState.filter(piece => piece === 'black').length;
+    const whitePieces = boardState.filter(piece => piece === 'white').length;
 
-       if(whitePieces.length < 3 ) {
-            message.textContent = 'Black wins!';
-           gamePhase = 'gameOver';
-           return true;
-        }
-         if(blackPieces.length < 3 ) {
-            message.textContent = 'White wins!';
-             gamePhase = 'gameOver';
-            return true;
-         }
-           const blackCanMove =  blackPieces.some(piece=> getAdjacentPoints( parseFloat(piece.dataset.x), parseFloat(piece.dataset.y)).some(point=> {
-                const pointElement = [...board.querySelectorAll('.point')].find(p =>
-                     Math.abs(parseFloat(p.style.left.replace('%', '')) - point[0]) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - point[1]) < 0.5
-                    );
-                 return pointElement && !pointElement.classList.contains('taken')
-               }));
-            const whiteCanMove =  whitePieces.some(piece=> getAdjacentPoints( parseFloat(piece.dataset.x), parseFloat(piece.dataset.y)).some(point=> {
-              const pointElement = [...board.querySelectorAll('.point')].find(p =>
-                  Math.abs(parseFloat(p.style.left.replace('%', '')) - point[0]) < 0.5 && Math.abs(parseFloat(p.style.top.replace('%', '')) - point[1]) < 0.5
-              );
-              return pointElement && !pointElement.classList.contains('taken')
-            }));
-        if(!blackCanMove && gamePhase==='movement' && currentPlayer === 'black' )
-         {
-           message.textContent = 'White wins!';
-           gamePhase = 'gameOver';
-            return true;
-         }
-        if(!whiteCanMove && gamePhase ==='movement' && currentPlayer === 'white')
-        {
-            message.textContent = 'Black wins!';
-             gamePhase = 'gameOver';
-            return true;
-        }
-
-        return false;
+    if (whitePieces < 3) {
+        updateMessage("Black wins!");
+        return true; // Indicate game over
     }
 
-updateMessage();
+    if (blackPieces < 3) {
+        updateMessage("White wins!");
+        return true; // Indicate game over
+    }
+
+    if (!placingPhase) {
+        if (currentPlayer === 'black' && !hasLegalMoves('black')) {
+            updateMessage("White wins! Black cannot move.");
+            return true; // Indicate game over
+        }
+        if (currentPlayer === 'white' && !hasLegalMoves('white')) {
+            updateMessage("Black wins! White cannot move.");
+            return true; // Indicate game over
+        }
+    }
+    return false; // No win condition met yet
+}
+
+function resetGame() {
+    boardState = Array(24).fill(null);
+    currentPlayer = 'black';
+    blackPiecesLeft = 9;
+    whitePiecesLeft = 9;
+    placingPhase = true;
+    selectedPieceIndex = null;
+    canRemovePiece = false;
+
+    updateBoardDisplay();
+    updateMessage(currentPlayer.toUpperCase() + "'s turn to place piece.");
+    blackScoreSpan.textContent = blackPiecesLeft;
+    whiteScoreSpan.textContent = whitePiecesLeft;
+    removeHighlights();
+    removeMillLines();
+    removeMillHighlight(); // Ensure mill highlight is removed on reset
+}
+
+// Event Listeners
+resetButton.addEventListener('click', resetGame);
+
+// Initial setup
+createPoints();
+updateMessage(currentPlayer.toUpperCase() + "'s turn to place piece.");
