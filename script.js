@@ -44,17 +44,24 @@ const neighbors = {
     22: [19, 21, 23],
     23: [14, 22]
 };
-const themeSelector = document.getElementById('theme');
-const container = document.querySelector('.container'); // Or the body
+const themeToggle = document.getElementById('theme-toggle');
+const container = document.querySelector('.container');
+const localTheme = localStorage.getItem('theme')
 
-themeSelector.addEventListener('change', (event) => {
-    const selectedTheme = event.target.value;
-    if (selectedTheme === 'dark') {
-        container.classList.add('dark-theme');
-        container.classList.remove('default-theme'); // Remove default if present
+if(localTheme === 'dark') {
+    container.classList.add('dark-theme')
+    themeToggle.innerHTML = '☀️';
+} else {
+    themeToggle.innerHTML = '🌙'
+}
+themeToggle.addEventListener('click', () => {
+    container.classList.toggle('dark-theme');
+    if (container.classList.contains('dark-theme')) {
+        localStorage.setItem('theme', 'dark')
+        themeToggle.innerHTML = '☀️';
     } else {
-        container.classList.remove('dark-theme');
-        container.classList.add('default-theme'); // Add default if needed
+         localStorage.setItem('theme', 'light')
+        themeToggle.innerHTML = '🌙';
     }
 });
 const gameBoard = document.querySelector('.game-board');
