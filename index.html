@@ -10,10 +10,10 @@
         <button id="theme-toggle" aria-label="Toggle Theme">🌙</button> <!-- Theme toggle -->
         <h1>Nine Men's Morris</h1>
         <div class="score">
-            <div class="player-score black-score">Black: <span id="black-score">9</span></div>
-            <div class="player-score white-score">White: <span id="white-score">9</span></div>
+            <div class="player-score" id="black-score-container">Black: <span id="black-score">9</span></div>
+            <div class="player-score" id="white-score-container">White: <span id="white-score">9</span></div>
         </div>
-        
+
         <div class="game-board">
             <img id="board-img" src="board.png" alt="Game Board">
             <div class="points">
@@ -24,5 +24,6 @@
         <button id="reset-button">Reset Game</button>
     </div>
     <script src="script.js"></script>
+    <script src="ai.js"></script>
 </body>
 </html>
