@@ -1,4 +1,4 @@
-// script.js (modified)
+// script.js
 const pointsData = [
     { x: 5, y: 3.5 }, { x: 50.5, y: 3.5 }, { x: 96, y: 3.5 },
     { x: 16.5, y: 19 }, { x: 50.5, y: 18.5 }, { x: 82, y: 19 },
@@ -430,33 +430,34 @@ function resetGame() {
 function makeAiMove() {
     if (!gameActive) return;
     messageDiv.textContent = "Black is thinking...";
-    // Disable clicks during AI's turn
     pointsContainer.style.pointerEvents = 'none';
     setTimeout(() => {
         if (placingPhase) {
             const aiPlacement = AI.makePlacementMove(boardState);
-            if (aiPlacement !== undefined) {
+            if (aiPlacement !== undefined && boardState[aiPlacement] === null) {
                 placeAiPiece(aiPlacement);
+            } else {
+                console.error("AI returned an invalid placement or the spot is occupied.");
+                switchTurn(); // Prevent infinite loop
             }
         } else if (canRemovePiece) {
             const opponent = getOpponent(currentPlayer);
             const removalIndex = AI.makeRemovalMove(boardState, opponent, mills);
-            if (removalIndex !== null) {
+            if (removalIndex !== null && boardState[removalIndex] === opponent) {
                 removeAiPiece(removalIndex);
             } else {
-                console.error("AI failed to make a removal move.");
-                switchTurn();
+                console.error("AI returned an invalid removal index or the piece isn't there.");
+                switchTurn(); // Prevent infinite loop
             }
         } else {
             const aiMove = AI.findBestMove(boardState, currentPlayer, placingPhase, neighbors, mills);
-            if (aiMove) {
+            if (aiMove && boardState[aiMove.to] === null && boardState[aiMove.from] === currentPlayer && neighbors[aiMove.from].includes(aiMove.to)) {
                 moveAiPiece(aiMove);
             } else {
-                console.error("AI has no legal moves.");
-                checkWinCondition();
+                console.error("AI returned an invalid move.");
+                checkWinCondition(); // Ensure game doesn't get stuck
             }
         }
-        // Re-enable clicks after AI's turn
         pointsContainer.style.pointerEvents = 'auto';
     }, 500);
 }
@@ -538,4 +539,4 @@ updateMessage(currentPlayer.toUpperCase() + "'s turn to place piece.");
 opponentType = opponentSelect.value; // Initialize opponent type
 if (currentPlayer === 'black' && opponentType === 'ai') {
     makeAiMove();
-}
+        }
