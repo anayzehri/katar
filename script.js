@@ -1,4 +1,3 @@
-// script.js
 const pointsData = [
     { x: 5, y: 3.5 }, { x: 50.5, y: 3.5 }, { x: 96, y: 3.5 },
     { x: 16.5, y: 19 }, { x: 50.5, y: 18.5 }, { x: 82, y: 19 },
@@ -48,7 +47,6 @@ const neighbors = {
 const themeToggle = document.getElementById('theme-toggle');
 const container = document.querySelector('.container');
 const localTheme = localStorage.getItem('theme');
-const opponentSelect = document.getElementById('opponent-select');
 
 if (localTheme === 'dark') {
     container.classList.add('dark-theme');
@@ -74,14 +72,13 @@ const whiteScoreSpan = document.getElementById('white-score');
 const resetButton = document.getElementById('reset-button');
 
 let boardState = Array(24).fill(null);
-let currentPlayer = 'white'; // Assuming human is white initially
+let currentPlayer = 'white'; // Assuming human is white, AI is black
 let blackPiecesLeft = 9;
 let whitePiecesLeft = 9;
 let placingPhase = true;
 let selectedPieceIndex = null;
 let canRemovePiece = false;
-let gameActive = true;
-let opponentType = 'human'; // Default opponent
+let gameActive = true; // Flag to control game state
 
 function createPoints() {
     pointsData.forEach((point, index) => {
@@ -110,7 +107,7 @@ function handlePointClick(event) {
     if (!gameActive) return;
     const pointIndex = parseInt(event.target.dataset.index);
 
-    if (currentPlayer === 'black' && opponentType === 'ai') { // AI's turn, ignore clicks
+    if (currentPlayer === 'black') { // AI's turn, ignore clicks
         return;
     }
 
@@ -324,7 +321,7 @@ function switchTurn() {
     updateMessage(currentPlayer.toUpperCase() + "'s turn.");
     removeMillHighlight();
     updateTurnIndicator();
-    if (currentPlayer === 'black' && opponentType === 'ai' && gameActive) {
+    if (currentPlayer === 'black' && gameActive) {
         makeAiMove();
     }
 }
@@ -411,7 +408,6 @@ function resetGame() {
     selectedPieceIndex = null;
     canRemovePiece = false;
     gameActive = true;
-    opponentType = opponentSelect.value; // Get the selected opponent
 
     updateBoardDisplay();
     updateMessage(currentPlayer.toUpperCase() + "'s turn to place piece.");
@@ -421,7 +417,7 @@ function resetGame() {
     removeMillLines();
     removeMillHighlight();
 
-    if (currentPlayer === 'black' && opponentType === 'ai' && gameActive) {
+    if (currentPlayer === 'black' && gameActive) {
         makeAiMove();
     }
 }
@@ -430,35 +426,30 @@ function resetGame() {
 function makeAiMove() {
     if (!gameActive) return;
     messageDiv.textContent = "Black is thinking...";
-    pointsContainer.style.pointerEvents = 'none';
     setTimeout(() => {
         if (placingPhase) {
             const aiPlacement = AI.makePlacementMove(boardState);
-            if (aiPlacement !== undefined && boardState[aiPlacement] === null) {
+            if (aiPlacement !== undefined) {
                 placeAiPiece(aiPlacement);
-            } else {
-                console.error("AI returned an invalid placement or the spot is occupied.");
-                switchTurn(); // Prevent infinite loop
             }
         } else if (canRemovePiece) {
             const opponent = getOpponent(currentPlayer);
             const removalIndex = AI.makeRemovalMove(boardState, opponent, mills);
-            if (removalIndex !== null && boardState[removalIndex] === opponent) {
+            if (removalIndex !== null) {
                 removeAiPiece(removalIndex);
             } else {
-                console.error("AI returned an invalid removal index or the piece isn't there.");
-                switchTurn(); // Prevent infinite loop
+                console.error("AI failed to make a removal move.");
+                switchTurn();
             }
         } else {
             const aiMove = AI.findBestMove(boardState, currentPlayer, placingPhase, neighbors, mills);
-            if (aiMove && boardState[aiMove.to] === null && boardState[aiMove.from] === currentPlayer && neighbors[aiMove.from].includes(aiMove.to)) {
+            if (aiMove) {
                 moveAiPiece(aiMove);
             } else {
-                console.error("AI returned an invalid move.");
-                checkWinCondition(); // Ensure game doesn't get stuck
+                console.error("AI has no legal moves.");
+                checkWinCondition();
             }
         }
-        pointsContainer.style.pointerEvents = 'auto';
     }, 500);
 }
 
@@ -476,7 +467,7 @@ function placeAiPiece(pointIndex) {
             updateMessage("Mill formed! " + currentPlayer.toUpperCase() + ", remove an opponent's piece.");
             drawMillLine(formedMill);
             highlightMillPieces(formedMill);
-            if (gameActive) makeAiMove(); // AI needs to remove a piece
+             if (gameActive) makeAiMove(); // AI needs to remove a piece
         } else {
             switchTurn();
         }
@@ -516,7 +507,7 @@ function moveAiPiece(move) {
             updateMessage("Mill formed! " + currentPlayer.toUpperCase() + ", remove an opponent's piece.");
             drawMillLine(formedMill);
             highlightMillPieces(formedMill);
-            if (gameActive) makeAiMove(); // AI needs to remove a piece
+            if (gameActive) makeAiMove();  // AI needs to remove a piece
         } else {
             switchTurn();
         }
@@ -525,18 +516,12 @@ function moveAiPiece(move) {
         checkWinCondition();
     }
 }
-
 // Event Listeners
 resetButton.addEventListener('click', resetGame);
-opponentSelect.addEventListener('change', () => {
-    opponentType = opponentSelect.value;
-    resetGame(); // Reset the game when the opponent type changes
-});
 
 // Initial setup
 createPoints();
 updateMessage(currentPlayer.toUpperCase() + "'s turn to place piece.");
-opponentType = opponentSelect.value; // Initialize opponent type
-if (currentPlayer === 'black' && opponentType === 'ai') {
+if (currentPlayer === 'black') {
     makeAiMove();
-        }
+}
