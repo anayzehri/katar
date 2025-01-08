@@ -1,3 +1,4 @@
+// script.js (modified)
 const pointsData = [
     { x: 5, y: 3.5 }, { x: 50.5, y: 3.5 }, { x: 96, y: 3.5 },
     { x: 16.5, y: 19 }, { x: 50.5, y: 18.5 }, { x: 82, y: 19 },
@@ -10,7 +11,7 @@ const pointsData = [
 
 const mills = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8],
-    [9, 10, 11], [12, 13, 14], 
+    [9, 10, 11], [12, 13, 14],
     [15, 16, 17], [18, 19, 20], [21, 22, 23],
     [0, 9, 21], [3, 10, 18], [6, 11, 15],
     [1, 4, 7], [16, 19, 22],
@@ -46,21 +47,22 @@ const neighbors = {
 };
 const themeToggle = document.getElementById('theme-toggle');
 const container = document.querySelector('.container');
-const localTheme = localStorage.getItem('theme')
+const localTheme = localStorage.getItem('theme');
+const opponentSelect = document.getElementById('opponent-select');
 
-if(localTheme === 'dark') {
-    container.classList.add('dark-theme')
+if (localTheme === 'dark') {
+    container.classList.add('dark-theme');
     themeToggle.innerHTML = '☀️';
 } else {
-    themeToggle.innerHTML = '🌙'
+    themeToggle.innerHTML = '🌙';
 }
 themeToggle.addEventListener('click', () => {
     container.classList.toggle('dark-theme');
     if (container.classList.contains('dark-theme')) {
-        localStorage.setItem('theme', 'dark')
+        localStorage.setItem('theme', 'dark');
         themeToggle.innerHTML = '☀️';
     } else {
-         localStorage.setItem('theme', 'light')
+        localStorage.setItem('theme', 'light');
         themeToggle.innerHTML = '🌙';
     }
 });
@@ -72,23 +74,24 @@ const whiteScoreSpan = document.getElementById('white-score');
 const resetButton = document.getElementById('reset-button');
 
 let boardState = Array(24).fill(null);
-let currentPlayer = 'black';
+let currentPlayer = 'white'; // Assuming human is white initially
 let blackPiecesLeft = 9;
 let whitePiecesLeft = 9;
 let placingPhase = true;
 let selectedPieceIndex = null;
-let canRemovePiece = false; // NEW: Flag to indicate if a piece can be removed
+let canRemovePiece = false;
+let gameActive = true;
+let opponentType = 'human'; // Default opponent
 
 function createPoints() {
     pointsData.forEach((point, index) => {
         const pointDiv = document.createElement('div');
-        pointDiv.classList.add('point'); // Removed 'empty' class here
+        pointDiv.classList.add('point', 'empty');
         pointDiv.style.left = `${point.x}%`;
         pointDiv.style.top = `${point.y}%`;
         pointDiv.dataset.index = index;
         pointDiv.addEventListener('click', handlePointClick);
         pointsContainer.appendChild(pointDiv);
-        updatePointVisualState(pointDiv, null); // Set initial visual state
     });
 }
 
@@ -104,7 +107,12 @@ function updatePointVisualState(pointDiv, player) {
 }
 
 function handlePointClick(event) {
+    if (!gameActive) return;
     const pointIndex = parseInt(event.target.dataset.index);
+
+    if (currentPlayer === 'black' && opponentType === 'ai') { // AI's turn, ignore clicks
+        return;
+    }
 
     if (canRemovePiece) {
         removeOpponentPiece(pointIndex);
@@ -134,10 +142,10 @@ function handlePlacement(pointIndex) {
 
         const formedMill = checkMill(pointIndex, currentPlayer);
         if (formedMill) {
-            canRemovePiece = true; // Set the flag to allow removal
+            canRemovePiece = true;
             updateMessage("Mill formed! " + currentPlayer.toUpperCase() + ", remove an opponent's piece.");
-            drawMillLine(formedMill); // Draw the green line
-            highlightMillPieces(formedMill); // Highlight the pieces forming the mill
+            drawMillLine(formedMill);
+            highlightMillPieces(formedMill);
         } else {
             switchTurn();
         }
@@ -157,19 +165,16 @@ function handleMovement(targetIndex) {
             updateBoardDisplay();
             removeHighlights();
             removeMillLines();
-            removeMillHighlight(); // Remove previous mill highlight
+            removeMillHighlight();
 
             const formedMill = checkMill(targetIndex, currentPlayer);
             if (formedMill) {
                 canRemovePiece = true;
                 updateMessage("Mill formed! " + currentPlayer.toUpperCase() + ", remove an opponent's piece.");
                 drawMillLine(formedMill);
-                highlightMillPieces(formedMill); // Highlight the pieces forming the mill
+                highlightMillPieces(formedMill);
             } else {
                 switchTurn();
-                if (!placingPhase) { // Only check win condition after placing phase
-                    checkWinCondition();
-                }
             }
             selectedPieceIndex = null;
         } else {
@@ -211,11 +216,11 @@ function checkMill(pointIndex, player) {
         if (mill.includes(pointIndex)) {
             const [a, b, c] = mill;
             if (boardState[a] === player && boardState[b] === player && boardState[c] === player) {
-                return mill; // Return the indices of the mill
+                return mill;
             }
         }
     }
-    return null; // Return null if no mill is formed
+    return null;
 }
 
 function drawMillLine(millIndices) {
@@ -240,15 +245,15 @@ function drawMillLine(millIndices) {
 
     const line = document.createElement('div');
     line.classList.add('mill-line');
-    pointsContainer.appendChild(line); // Append to the points container
+    pointsContainer.appendChild(line);
 
-    if (Math.abs(centerY1 - centerY2) < 1 && Math.abs(centerY2 - centerY3) < 1) { // Horizontal
+    if (Math.abs(centerY1 - centerY2) < 1 && Math.abs(centerY2 - centerY3) < 1) {
         line.style.width = `${Math.max(centerX1, centerX2, centerX3) - Math.min(centerX1, centerX2, centerX3)}px`;
-        line.style.top = `${centerY1 - 3}px`; // Adjust for line thickness
+        line.style.top = `${centerY1 - 3}px`;
         line.style.left = `${Math.min(centerX1, centerX2, centerX3)}px`;
-    } else if (Math.abs(centerX1 - centerX2) < 1 && Math.abs(centerX2 - centerX3) < 1) { // Vertical
+    } else if (Math.abs(centerX1 - centerX2) < 1 && Math.abs(centerX2 - centerX3) < 1) {
         line.style.height = `${Math.max(centerY1, centerY2, centerY3) - Math.min(centerY1, centerY2, centerY3)}px`;
-        line.style.left = `${centerX1 - 3}px`; // Adjust for line thickness
+        line.style.left = `${centerX1 - 3}px`;
         line.style.top = `${Math.min(centerY1, centerY2, centerY3)}px`;
     }
 }
@@ -272,31 +277,23 @@ function removeMillHighlight() {
 
 function removeOpponentPiece(pointIndex) {
     const opponent = currentPlayer === 'black' ? 'white' : 'black';
-    console.log("removeOpponentPiece - Before removal:", boardState); // ADD THIS LINE
     if (boardState[pointIndex] === opponent && !isPieceInMill(pointIndex, opponent)) {
         boardState[pointIndex] = null;
         updateBoardDisplay();
-        canRemovePiece = false; // Reset the flag after removal
-        removeMillLines(); // Remove mill line after removing a piece
-        removeMillHighlight(); // Remove the mill highlight after removal
+        canRemovePiece = false;
+        removeMillLines();
+        removeMillHighlight();
         switchTurn();
-        if (!placingPhase) { // Only check win condition after placing phase
-            checkWinCondition();
-        }
     } else if (boardState[pointIndex] === opponent && canOnlyRemoveFromMill(opponent)) {
         boardState[pointIndex] = null;
         updateBoardDisplay();
-        canRemovePiece = false; // Reset the flag after removal
-        removeMillLines(); // Remove mill line after removing a piece
-        removeMillHighlight(); // Remove the mill highlight after removal
+        canRemovePiece = false;
+        removeMillLines();
+        removeMillHighlight();
         switchTurn();
-        if (!placingPhase) { // Only check win condition after placing phase
-            checkWinCondition();
-        }
     } else {
         updateMessage("Invalid removal. Choose an opponent's piece not in a mill (unless all their pieces are in mills).");
     }
-    console.log("removeOpponentPiece - After removal:", boardState); // ADD THIS LINE
 }
 function isPieceInMill(pointIndex, player) {
     for (const mill of mills) {
@@ -325,9 +322,13 @@ function canOnlyRemoveFromMill(player) {
 function switchTurn() {
     currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
     updateMessage(currentPlayer.toUpperCase() + "'s turn.");
-    removeMillHighlight(); // Remove mill highlight when the turn changes without a mill
+    removeMillHighlight();
     updateTurnIndicator();
+    if (currentPlayer === 'black' && opponentType === 'ai' && gameActive) {
+        makeAiMove();
+    }
 }
+
 function updateTurnIndicator() {
     if (currentPlayer === 'black') {
         blackScoreSpan.parentElement.classList.add('current-turn');
@@ -338,7 +339,6 @@ function updateTurnIndicator() {
     }
 }
 
-// Call updateTurnIndicator initially
 updateTurnIndicator();
 
 function updateMessage(message) {
@@ -348,10 +348,9 @@ function updateMessage(message) {
 function updateBoardDisplay() {
     document.querySelectorAll('.point').forEach((pointDiv, index) => {
         updatePointVisualState(pointDiv, boardState[index]);
-        pointDiv.classList.remove('highlight', 'mill-highlight'); // Remove these here for clarity
+        pointDiv.classList.remove('highlight', 'mill-highlight');
     });
-    console.log("Before checkWinCondition - Board State:", boardState); // ADD THIS LINE
-    if (!placingPhase) { // Only check win condition after placing phase
+    if (!placingPhase) {
         checkWinCondition();
     }
 }
@@ -359,18 +358,17 @@ function updateBoardDisplay() {
 function hasLegalMoves(player) {
     for (let i = 0; i < boardState.length; i++) {
         if (boardState[i] === player) {
-            // Check if this piece has any empty neighbors
             const neighborsOfPiece = neighbors[i];
             if (neighborsOfPiece) {
                 for (const neighborIndex of neighborsOfPiece) {
                     if (boardState[neighborIndex] === null) {
-                        return true; // Found a legal move
+                        return true;
                     }
                 }
             }
         }
     }
-    return false; // No legal moves found for this player
+    return false;
 }
 
 function checkWinCondition() {
@@ -379,35 +377,41 @@ function checkWinCondition() {
 
     if (whitePieces < 3) {
         updateMessage("Black wins!");
-        return true; // Indicate game over
+        gameActive = false;
+        return true;
     }
 
     if (blackPieces < 3) {
         updateMessage("White wins!");
-        return true; // Indicate game over
+        gameActive = false;
+        return true;
     }
 
     if (!placingPhase) {
         if (currentPlayer === 'black' && !hasLegalMoves('black')) {
             updateMessage("White wins! Black cannot move.");
-            return true; // Indicate game over
+            gameActive = false;
+            return true;
         }
         if (currentPlayer === 'white' && !hasLegalMoves('white')) {
             updateMessage("Black wins! White cannot move.");
-            return true; // Indicate game over
+            gameActive = false;
+            return true;
         }
     }
-    return false; // No win condition met yet
+    return false;
 }
 
 function resetGame() {
     boardState = Array(24).fill(null);
-    currentPlayer = 'black';
+    currentPlayer = 'white'; // Human starts
     blackPiecesLeft = 9;
     whitePiecesLeft = 9;
     placingPhase = true;
     selectedPieceIndex = null;
     canRemovePiece = false;
+    gameActive = true;
+    opponentType = opponentSelect.value; // Get the selected opponent
 
     updateBoardDisplay();
     updateMessage(currentPlayer.toUpperCase() + "'s turn to place piece.");
@@ -415,12 +419,123 @@ function resetGame() {
     whiteScoreSpan.textContent = whitePiecesLeft;
     removeHighlights();
     removeMillLines();
-    removeMillHighlight(); // Ensure mill highlight is removed on reset
+    removeMillHighlight();
+
+    if (currentPlayer === 'black' && opponentType === 'ai' && gameActive) {
+        makeAiMove();
+    }
+}
+
+// AI Integration
+function makeAiMove() {
+    if (!gameActive) return;
+    messageDiv.textContent = "Black is thinking...";
+    // Disable clicks during AI's turn
+    pointsContainer.style.pointerEvents = 'none';
+    setTimeout(() => {
+        if (placingPhase) {
+            const aiPlacement = AI.makePlacementMove(boardState);
+            if (aiPlacement !== undefined) {
+                placeAiPiece(aiPlacement);
+            }
+        } else if (canRemovePiece) {
+            const opponent = getOpponent(currentPlayer);
+            const removalIndex = AI.makeRemovalMove(boardState, opponent, mills);
+            if (removalIndex !== null) {
+                removeAiPiece(removalIndex);
+            } else {
+                console.error("AI failed to make a removal move.");
+                switchTurn();
+            }
+        } else {
+            const aiMove = AI.findBestMove(boardState, currentPlayer, placingPhase, neighbors, mills);
+            if (aiMove) {
+                moveAiPiece(aiMove);
+            } else {
+                console.error("AI has no legal moves.");
+                checkWinCondition();
+            }
+        }
+        // Re-enable clicks after AI's turn
+        pointsContainer.style.pointerEvents = 'auto';
+    }, 500);
+}
+
+function placeAiPiece(pointIndex) {
+    if (boardState[pointIndex] === null) {
+        boardState[pointIndex] = currentPlayer;
+        const pointDiv = document.querySelector(`.point[data-index="${pointIndex}"]`);
+        updatePointVisualState(pointDiv, currentPlayer);
+        blackPiecesLeft--;
+        blackScoreSpan.textContent = blackPiecesLeft;
+
+        const formedMill = checkMill(pointIndex, currentPlayer);
+        if (formedMill) {
+            canRemovePiece = true;
+            updateMessage("Mill formed! " + currentPlayer.toUpperCase() + ", remove an opponent's piece.");
+            drawMillLine(formedMill);
+            highlightMillPieces(formedMill);
+            if (gameActive) makeAiMove(); // AI needs to remove a piece
+        } else {
+            switchTurn();
+        }
+        if (blackPiecesLeft === 0 && whitePiecesLeft === 0) {
+            placingPhase = false;
+            updateMessage(currentPlayer.toUpperCase() + "'s turn to move.");
+        }
+    }
+}
+
+function removeAiPiece(pointIndex) {
+    const opponent = getOpponent(currentPlayer);
+    if (boardState[pointIndex] === opponent) {
+        boardState[pointIndex] = null;
+        updateBoardDisplay();
+        canRemovePiece = false;
+        removeMillLines();
+        removeMillHighlight();
+        switchTurn();
+    } else {
+        console.error("AI tried to remove an invalid piece.");
+        switchTurn();
+    }
+}
+
+function moveAiPiece(move) {
+    if (boardState[move.to] === null && boardState[move.from] === currentPlayer && neighbors[move.from].includes(move.to)) {
+        boardState[move.to] = currentPlayer;
+        boardState[move.from] = null;
+        updateBoardDisplay();
+        removeMillLines();
+        removeMillHighlight();
+
+        const formedMill = checkMill(move.to, currentPlayer);
+        if (formedMill) {
+            canRemovePiece = true;
+            updateMessage("Mill formed! " + currentPlayer.toUpperCase() + ", remove an opponent's piece.");
+            drawMillLine(formedMill);
+            highlightMillPieces(formedMill);
+            if (gameActive) makeAiMove(); // AI needs to remove a piece
+        } else {
+            switchTurn();
+        }
+    } else {
+        console.error("AI made an invalid move.");
+        checkWinCondition();
+    }
 }
 
 // Event Listeners
 resetButton.addEventListener('click', resetGame);
+opponentSelect.addEventListener('change', () => {
+    opponentType = opponentSelect.value;
+    resetGame(); // Reset the game when the opponent type changes
+});
 
 // Initial setup
 createPoints();
 updateMessage(currentPlayer.toUpperCase() + "'s turn to place piece.");
+opponentType = opponentSelect.value; // Initialize opponent type
+if (currentPlayer === 'black' && opponentType === 'ai') {
+    makeAiMove();
+}
