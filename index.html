@@ -9,6 +9,13 @@
     <div class="container">
         <button id="theme-toggle" aria-label="Toggle Theme">🌙</button> <!-- Theme toggle -->
         <h1>Nine Men's Morris</h1>
+        <div class="controls">
+            <label for="opponent-select">Play against:</label>
+            <select id="opponent-select">
+                <option value="human">Human</option>
+                <option value="ai">AI</option>
+            </select>
+        </div>
         <div class="score">
             <div class="player-score" id="black-score-container">Black: <span id="black-score">9</span></div>
             <div class="player-score" id="white-score-container">White: <span id="white-score">9</span></div>
